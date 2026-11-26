@@ -222,24 +222,27 @@ namespace PicaVoxel
             
             Ray ray = new Ray(transform.position, transform.forward);
             
+            // Everything below comes from this raycast, not from the cursor's last update (every 0.1 s), which
+            // can still be empty or on another block when the button is pressed.
             Volume vol = VolumeRaycast(ray, 0f, out Chunk _, out (int x, int y, int z) _, out Vector3? _);
             if (!vol) return false;
+            float voxelSize = vol.VoxelSize;
 
-            if ((_hitInfo.point - transform.position).magnitude < (RayDistanceMinMax.x*_lastVoxelSize))
+            if ((_hitInfo.point - transform.position).magnitude < (RayDistanceMinMax.x*voxelSize))
                 return false;
 
-            Voxel? tv = vol.GetVoxelAtWorldPosition(_hitInfo.point + (ray.direction * (0.1f * _lastVoxelSize)), out Chunk _, out (int x, int y, int z) _);
+            Voxel? tv = vol.GetVoxelAtWorldPosition(_hitInfo.point + (ray.direction * (0.1f * voxelSize)), out Chunk _, out (int x, int y, int z) _);
             if (!tv.HasValue)
                 return false;
 
             // Custom blocks have state > 1, 2-5 is block orientation north,east,south,west
             byte state = 1;
-            if (_selectedVolume.CustomBlocksDict.TryGetValue(VoxelValue, out CustomBlockData data))
+            if (vol.CustomBlocksDict.TryGetValue(VoxelValue, out CustomBlockData data))
             {
                 state = 2;
                 if (data.AllowOrientation)
                 {
-                    state += (byte)GetHitOrientation(_hitInfo, _selectedChunk.transform, ray.direction);
+                    state += (byte)GetHitOrientation(_hitInfo, vol.transform, ray.direction); // chunks share the volume's rotation
                     if (data.UseTargetOrientationWhenSameValue && tv.Value.Value==VoxelValue)
                     {
                         state = tv.Value.State;
@@ -247,16 +250,16 @@ namespace PicaVoxel
                 }
             }
             
-            Voxel? v = vol.SetVoxelAtWorldPosition(_hitInfo.point - (ray.direction * (0.1f*_lastVoxelSize)), new Voxel(){State = state, Value = VoxelValue, Color=VoxelColor}, out Chunk chunk, out (int x, int y, int z) pos);
+            Voxel? v = vol.SetVoxelAtWorldPosition(_hitInfo.point - (ray.direction * (0.1f*voxelSize)), new Voxel(){State = state, Value = VoxelValue, Color=VoxelColor}, out Chunk chunk, out (int x, int y, int z) pos);
 
             if (v != null)
             {
                 VoxelEditEventArgs args = 
                 new VoxelEditEventArgs(
-                    volumeId: _selectedVolume.Identifier,
-                    chunkX: _selectedChunk.Position.x,
-                    chunkY: _selectedChunk.Position.y,
-                    chunkZ: _selectedChunk.Position.z,
+                    volumeId: vol.Identifier,
+                    chunkX: chunk.Position.x,
+                    chunkY: chunk.Position.y,
+                    chunkZ: chunk.Position.z,
                     voxelX: pos.x,
                     voxelY: pos.y,
                     voxelZ: pos.z,
@@ -282,16 +285,16 @@ namespace PicaVoxel
             Volume vol = VolumeRaycast(ray);
             if (!vol) return false;
 
-            Voxel? v = vol.SetVoxelAtWorldPosition(_hitInfo.point + (ray.direction *(0.1f*_lastVoxelSize)), new Voxel(){State = 0}, out Chunk chunk, out (int x, int y, int z) pos); ;
+            Voxel? v = vol.SetVoxelAtWorldPosition(_hitInfo.point + (ray.direction *(0.1f*vol.VoxelSize)), new Voxel(){State = 0}, out Chunk chunk, out (int x, int y, int z) pos);
             
             if (v != null)
             {
                 VoxelEditEventArgs args = 
                     new VoxelEditEventArgs(
-                        volumeId: _selectedVolume.Identifier,
-                        chunkX: _selectedChunk.Position.x,
-                        chunkY: _selectedChunk.Position.y,
-                        chunkZ: _selectedChunk.Position.z,
+                        volumeId: vol.Identifier,
+                        chunkX: chunk.Position.x,
+                        chunkY: chunk.Position.y,
+                        chunkZ: chunk.Position.z,
                         voxelX: pos.x,
                         voxelY: pos.y,
                         voxelZ: pos.z,
